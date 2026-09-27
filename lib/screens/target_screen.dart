@@ -209,13 +209,28 @@ class TargetScreen extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 16),
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            icon: const Icon(Icons.flash_on),
-            onPressed: viewModel.monitorActive ? () => viewModel.injectDeauth() : null,
-            label: const Text('INJECT DEAUTH [ATTACK]'),
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.flash_on),
+                onPressed: viewModel.monitorActive ? () => viewModel.injectDeauth() : null,
+                label: const Text('DEAUTH [CLIENT]'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: HackerTheme.secondary,
+                  side: BorderSide(color: viewModel.monitorActive ? HackerTheme.secondary : HackerTheme.borderDim, width: 2),
+                ),
+                icon: const Icon(Icons.cell_tower),
+                onPressed: viewModel.monitorActive ? () => viewModel.injectPmkidAttack() : null,
+                label: const Text('PMKID [ROUTER]'),
+              ),
+            ),
+          ],
         ),
       ],
     );
