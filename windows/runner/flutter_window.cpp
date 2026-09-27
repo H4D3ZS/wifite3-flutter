@@ -20,6 +20,7 @@
 
 namespace {
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> g_channel = nullptr;
+  HWND g_windowHwnd = NULL;
   std::atomic<bool> g_isCapturing(false);
   std::thread g_captureThread;
 
@@ -80,8 +81,9 @@ namespace {
             resultsList.push_back(flutter::EncodableValue(item));
           }
 
-          if (g_channel) {
-            g_channel->InvokeMethod("onScanResults", std::make_unique<flutter::EncodableValue>(resultsList));
+          if (g_channel && g_windowHwnd) {
+            auto pResults = new flutter::EncodableList(resultsList);
+            PostMessage(g_windowHwnd, WM_USER + 100, reinterpret_cast<WPARAM>(pResults), 0);
           }
 
           WlanFreeMemory(pBssList);
@@ -105,8 +107,9 @@ namespace {
 
               resultsList.push_back(flutter::EncodableValue(item));
             }
-            if (g_channel) {
-              g_channel->InvokeMethod("onScanResults", std::make_unique<flutter::EncodableValue>(resultsList));
+            if (g_channel && g_windowHwnd) {
+              auto pResults = new flutter::EncodableList(resultsList);
+              PostMessage(g_windowHwnd, WM_USER + 100, reinterpret_cast<WPARAM>(pResults), 0);
             }
             WlanFreeMemory(pNetList);
           }
@@ -127,6 +130,8 @@ bool FlutterWindow::OnCreate() {
   if (!Win32Window::OnCreate()) {
     return false;
   }
+
+  g_windowHwnd = GetHandle();
 
   RECT frame = GetClientArea();
 
@@ -166,6 +171,8 @@ bool FlutterWindow::OnCreate() {
           std::thread([]() {
             PerformWindowsScanAndEmit();
           }).detach();
+          result->Success(flutter::EncodableValue(true));
+        } else if (method == "stopScan") {
           result->Success(flutter::EncodableValue(true));
         } else if (method == "startMonitorMode") {
           result->Success(flutter::EncodableValue(true));
@@ -215,6 +222,14 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   }
 
   switch (message) {
+    case WM_USER + 100: {
+      auto pResults = reinterpret_cast<flutter::EncodableList*>(wparam);
+      if (pResults && g_channel) {
+        g_channel->InvokeMethod("onScanResults", std::make_unique<flutter::EncodableValue>(*pResults));
+        delete pResults;
+      }
+      return 0;
+    }
     case WM_FONTCHANGE:
       flutter_controller_->engine()->ReloadSystemFonts();
       break;
