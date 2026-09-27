@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../domain/entities/access_point.dart';
+import '../data/repositories/wifi_repository_impl.dart';
+import '../presentation/screens/auto_pwn_screen.dart';
+import '../presentation/viewmodels/auto_pwn_viewmodel.dart';
 import '../native_bridge.dart';
 import '../theme.dart';
 import 'target_screen.dart';
@@ -17,6 +21,32 @@ class ScannerScreen extends StatelessWidget {
           appBar: AppBar(
             title: const Text('[ W I F I T E 3 ]'),
             actions: [
+              IconButton(
+                icon: const Icon(Icons.bolt, color: HackerTheme.primary),
+                tooltip: 'Launch Auto-Pwn Campaign',
+                onPressed: () {
+                  final targets = viewModel.results.map((r) => AccessPoint(
+                    bssid: r.bssid,
+                    ssid: r.ssid,
+                    channel: r.channel,
+                    rssi: r.rssi,
+                    encryption: r.encryption,
+                    frequency: r.frequency,
+                    wpsEnabled: r.wpsEnabled,
+                    vendor: r.vendor,
+                  )).toList();
+
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ChangeNotifierProvider(
+                        create: (_) => AutoPwnViewModel(WifiRepositoryImpl()),
+                        child: AutoPwnScreen(targets: targets),
+                      ),
+                    ),
+                  );
+                },
+              ),
               IconButton(
                 icon: Icon(
                   viewModel.backendInfo?.dongleConnected == true ? Icons.usb : Icons.usb_off,
