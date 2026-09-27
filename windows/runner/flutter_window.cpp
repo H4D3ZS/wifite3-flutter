@@ -95,6 +95,7 @@ namespace {
             for (DWORD k = 0; k < pNetList->dwNumberOfItems; k++) {
               WLAN_AVAILABLE_NETWORK net = pNetList->Network[k];
               std::string ssidStr(reinterpret_cast<char*>(net.dot11Ssid.ucSSID), net.dot11Ssid.uSSIDLength);
+              if (ssidStr.empty()) continue;
               
               flutter::EncodableMap item;
               item[flutter::EncodableValue("bssid")] = flutter::EncodableValue("00:11:22:33:44:55");
