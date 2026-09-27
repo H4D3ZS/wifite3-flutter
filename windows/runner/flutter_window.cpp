@@ -163,7 +163,9 @@ bool FlutterWindow::OnCreate() {
         } else if (method == "connectDongle") {
           result->Success(flutter::EncodableValue(true));
         } else if (method == "startScan") {
-          std::thread(PerformWindowsScanAndEmit).detach();
+          std::thread([]() {
+            PerformWindowsScanAndEmit();
+          }).detach();
           result->Success(flutter::EncodableValue(true));
         } else if (method == "startMonitorMode") {
           result->Success(flutter::EncodableValue(true));

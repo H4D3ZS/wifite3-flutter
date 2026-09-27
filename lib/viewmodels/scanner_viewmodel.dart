@@ -12,6 +12,8 @@ class ScannerViewModel extends ChangeNotifier {
   List<ScanResult> get results => _results;
   BackendInfo? get backendInfo => _backendInfo;
 
+  Timer? _scanTimer;
+
   ScannerViewModel() {
     _initScanner();
   }
@@ -21,9 +23,11 @@ class ScannerViewModel extends ChangeNotifier {
     notifyListeners();
     
     _scanSub = NativeBridge.scanResults.listen((results) {
-      _results = results;
-      _results.sort((a, b) => b.rssi.compareTo(a.rssi));
-      notifyListeners();
+      if (results.isNotEmpty) {
+        _results = results;
+        _results.sort((a, b) => b.rssi.compareTo(a.rssi));
+        notifyListeners();
+      }
     });
     
     toggleScan();
@@ -31,11 +35,16 @@ class ScannerViewModel extends ChangeNotifier {
 
   Future<void> toggleScan() async {
     if (_isScanning) {
+      _scanTimer?.cancel();
       await NativeBridge.stopScan();
+      _isScanning = false;
     } else {
+      _isScanning = true;
       await NativeBridge.startScan();
+      _scanTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+        if (_isScanning) NativeBridge.startScan();
+      });
     }
-    _isScanning = !_isScanning;
     notifyListeners();
   }
 
