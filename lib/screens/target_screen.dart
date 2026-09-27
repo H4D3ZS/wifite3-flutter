@@ -54,7 +54,7 @@ class TargetScreen extends StatelessWidget {
                   children: [
                     _buildTargetInfo(viewModel),
                     const SizedBox(height: 20),
-                    _buildControls(viewModel),
+                    _buildControls(context, viewModel),
                     const SizedBox(height: 24),
                     Row(
                       children: [
@@ -180,7 +180,7 @@ class TargetScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildControls(TargetViewModel viewModel) {
+  Widget _buildControls(BuildContext context, TargetViewModel viewModel) {
     return Column(
       children: [
         Row(
