@@ -118,9 +118,10 @@ class NativeBridge {
     switch (call.method) {
       case 'onScanResults':
         final List<dynamic> rawList = call.arguments;
-        final results = rawList
-            .map((m) => ScanResult.fromMap(m as Map<dynamic, dynamic>))
-            .toList();
+        final results = rawList.map((m) {
+          final Map<dynamic, dynamic> map = m is Map ? m : {};
+          return ScanResult.fromMap(map);
+        }).toList();
         _scanController.add(results);
         break;
 
