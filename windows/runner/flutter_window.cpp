@@ -138,6 +138,59 @@ namespace {
           WlanFreeMemory(pNetList);
         }
 
+        // Fallback 3: Execute `netsh wlan show networks mode=bssid` CLI parser if Win32 API handles are restricted
+        if (resultsList.empty()) {
+          FILE* pipe = _popen("netsh wlan show networks mode=bssid", "r");
+          if (pipe) {
+            char buffer[512];
+            std::string currentSsid = "";
+            std::string currentBssid = "";
+            int currentRssi = -60;
+            int currentChannel = 6;
+            std::string currentAuth = "WPA2";
+
+            while (fgets(buffer, sizeof(buffer), pipe) != NULL) {
+              std::string line(buffer);
+              if (line.find("SSID ") != std::string::npos && line.find(":") != std::string::npos) {
+                size_t pos = line.find(":");
+                currentSsid = line.substr(pos + 2);
+                // Trim trailing newlines
+                while (!currentSsid.empty() && (currentSsid.back() == '\r' || currentSsid.back() == '\n')) currentSsid.pop_back();
+              } else if (line.find("BSSID ") != std::string::npos && line.find(":") != std::string::npos) {
+                size_t pos = line.find(":");
+                currentBssid = line.substr(pos + 2);
+                while (!currentBssid.empty() && (currentBssid.back() == '\r' || currentBssid.back() == '\n')) currentBssid.pop_back();
+              } else if (line.find("Signal") != std::string::npos && line.find(":") != std::string::npos) {
+                size_t pos = line.find(":");
+                std::string sigStr = line.substr(pos + 2);
+                int sig = atoi(sigStr.c_str());
+                currentRssi = (sig / 2) - 100;
+              } else if (line.find("Channel") != std::string::npos && line.find(":") != std::string::npos) {
+                size_t pos = line.find(":");
+                currentChannel = atoi(line.substr(pos + 2).c_str());
+
+                if (!currentBssid.empty()) {
+                  flutter::EncodableMap item;
+                  item[flutter::EncodableValue("bssid")] = flutter::EncodableValue(currentBssid);
+                  item[flutter::EncodableValue("ssid")] = flutter::EncodableValue(currentSsid.empty() ? "<HIDDEN_SSID>" : currentSsid);
+                  item[flutter::EncodableValue("channel")] = flutter::EncodableValue(currentChannel > 0 ? currentChannel : 6);
+                  item[flutter::EncodableValue("rssi")] = flutter::EncodableValue(currentRssi);
+                  item[flutter::EncodableValue("encryption")] = flutter::EncodableValue(currentAuth);
+                  item[flutter::EncodableValue("frequency")] = flutter::EncodableValue(currentChannel > 14 ? "5.0 GHz" : "2.4 GHz");
+                  item[flutter::EncodableValue("wps")] = flutter::EncodableValue(true);
+                  resultsList.push_back(flutter::EncodableValue(item));
+                  currentBssid = "";
+                }
+              } else if (line.find("Authentication") != std::string::npos && line.find(":") != std::string::npos) {
+                size_t pos = line.find(":");
+                currentAuth = line.substr(pos + 2);
+                while (!currentAuth.empty() && (currentAuth.back() == '\r' || currentAuth.back() == '\n')) currentAuth.pop_back();
+              }
+            }
+            _pclose(pipe);
+          }
+        }
+
         if (g_channel && !resultsList.empty()) {
           g_channel->InvokeMethod("onScanResults", std::make_unique<flutter::EncodableValue>(resultsList));
         }
