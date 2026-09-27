@@ -138,9 +138,8 @@ namespace {
           WlanFreeMemory(pNetList);
         }
 
-        if (g_channel && g_windowHwnd && !resultsList.empty()) {
-          auto pResults = new flutter::EncodableList(resultsList);
-          PostMessage(g_windowHwnd, WM_USER + 100, reinterpret_cast<WPARAM>(pResults), 0);
+        if (g_channel && !resultsList.empty()) {
+          g_channel->InvokeMethod("onScanResults", std::make_unique<flutter::EncodableValue>(resultsList));
         }
       }
       WlanFreeMemory(pIfList);
