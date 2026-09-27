@@ -17,11 +17,23 @@ class EvilTwinScreen extends StatefulWidget {
 }
 
 class _EvilTwinScreenState extends State<EvilTwinScreen> {
+  String _selectedVendorPortal = 'Generic WPA/WPA2 Router';
+
+  final List<String> _availablePortals = [
+    'Generic WPA/WPA2 Router',
+    'Netgear Nighthawk (2026 Mobile)',
+    'TP-Link Archer (Dark Theme)',
+    'ASUS ROG Gaming Router',
+    'Linksys Smart Wi-Fi',
+    'D-Link CyberPortal',
+    'Starlink Residential Portal',
+  ];
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<EvilTwinViewModel>().startAttack(widget.target);
+      context.read<EvilTwinViewModel>().startAttack(widget.target, portalVendor: _selectedVendorPortal);
     });
   }
 
@@ -33,7 +45,7 @@ class _EvilTwinScreenState extends State<EvilTwinScreen> {
 
         return Scaffold(
           appBar: AppBar(
-            title: Text('[ FLUXION EVIL TWIN ] - ${widget.target.displaySsid}'),
+            title: Text('[ FLUXION-NG 2026 ] - ${widget.target.displaySsid}'),
             bottom: PreferredSize(
               preferredSize: const Size.fromHeight(2.0),
               child: Container(
@@ -61,6 +73,8 @@ class _EvilTwinScreenState extends State<EvilTwinScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
+                          _buildTemplateSelector(isMobile, viewModel.isRunning),
+                          const SizedBox(height: 12),
                           _buildStatusCard(widget.target, progress, viewModel.capturedKey, isMobile),
                           const SizedBox(height: 16),
                           Row(
@@ -68,7 +82,7 @@ class _EvilTwinScreenState extends State<EvilTwinScreen> {
                               const Icon(Icons.terminal, color: HackerTheme.secondary, size: 20),
                               const SizedBox(width: 8),
                               Text(
-                                'EVIL_TWIN_CONSOLE >>',
+                                'FLUXION_NG_CONSOLE >>',
                                 style: TextStyle(
                                   color: HackerTheme.secondary.withValues(alpha: 0.8),
                                   fontWeight: FontWeight.bold,
@@ -127,10 +141,10 @@ class _EvilTwinScreenState extends State<EvilTwinScreen> {
                               if (viewModel.isRunning) {
                                 viewModel.stopAttack();
                               } else {
-                                viewModel.startAttack(widget.target);
+                                viewModel.startAttack(widget.target, portalVendor: _selectedVendorPortal);
                               }
                             },
-                            label: Text(viewModel.isRunning ? 'TERMINATE ATTACK' : 'RESTART ATTACK'),
+                            label: Text(viewModel.isRunning ? 'TERMINATE FLUXION-NG' : 'LAUNCH FLUXION-NG 2026'),
                           ),
                         ],
                       ),
@@ -142,6 +156,50 @@ class _EvilTwinScreenState extends State<EvilTwinScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildTemplateSelector(bool isMobile, bool isRunning) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: HackerTheme.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: HackerTheme.borderDim),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.style, color: HackerTheme.secondary, size: 18),
+          const SizedBox(width: 10),
+          Text('PORTAL TEMPLATE:', style: TextStyle(color: HackerTheme.secondary, fontSize: isMobile ? 12 : 14, fontWeight: FontWeight.bold)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _selectedVendorPortal,
+                isExpanded: true,
+                dropdownColor: HackerTheme.surface,
+                style: const TextStyle(color: HackerTheme.primary, fontWeight: FontWeight.bold, fontSize: 13),
+                items: _availablePortals.map((portal) {
+                  return DropdownMenuItem<String>(
+                    value: portal,
+                    child: Text(portal, overflow: TextOverflow.ellipsis),
+                  );
+                }).toList(),
+                onChanged: isRunning
+                    ? null
+                    : (val) {
+                        if (val != null) {
+                          setState(() {
+                            _selectedVendorPortal = val;
+                          });
+                        }
+                      },
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -216,7 +274,7 @@ class _EvilTwinScreenState extends State<EvilTwinScreen> {
             ),
             const SizedBox(height: 4),
             Text(
-              'Captive Portal: http://10.254.254.1 (Generic WPA/WPA2 Portal)',
+              'Captive Portal: http://10.254.254.1 (${progress?.portalType ?? _selectedVendorPortal})',
               style: TextStyle(color: HackerTheme.textMuted, fontSize: isMobile ? 12 : 14),
             ),
           ],

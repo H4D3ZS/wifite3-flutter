@@ -24,16 +24,17 @@ class EvilTwinViewModel extends ChangeNotifier {
     _executeEvilTwin = ExecuteEvilTwinAttack(repository);
   }
 
-  void startAttack(AccessPoint target) {
+  void startAttack(AccessPoint target, {String portalVendor = 'Generic WPA/WPA2 Router'}) {
     if (_isRunning) return;
 
     _isRunning = true;
     _capturedKey = null;
     _logs.clear();
-    _addLog('FLUXION EVIL TWIN ATTACK LAUNCHED ON [${target.displaySsid}]');
+    _addLog('FLUXION-NG 2026 ENGINE LAUNCHED ON [${target.displaySsid}]');
+    _addLog('SELECTED PORTAL TEMPLATE: $portalVendor');
     notifyListeners();
 
-    _sub = _executeEvilTwin(target).listen((prog) {
+    _sub = _executeEvilTwin(target, portalVendor: portalVendor).listen((prog) {
       _progress = prog;
       _addLog(prog.statusLog);
       if (prog.capturedPassword != null) {
