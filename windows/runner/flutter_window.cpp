@@ -45,7 +45,7 @@ namespace {
         Sleep(500); // Give driver time to populate BSS list
 
         PWLAN_BSS_LIST pBssList = NULL;
-        if (WlanGetNetworkBssList(hClient, &ifInfo.InterfaceGuid, NULL, dot11_BSS_type_any, FALSE, NULL, &pBssList) == ERROR_SUCCESS) {
+        if (WlanGetNetworkBssList(hClient, &ifInfo.InterfaceGuid, NULL, dot11_BSS_type_any, FALSE, NULL, &pBssList) == ERROR_SUCCESS && pBssList && pBssList->dwNumberOfItems > 0) {
           flutter::EncodableList resultsList;
 
           for (DWORD j = 0; j < pBssList->dwNumberOfItems; j++) {
@@ -54,11 +54,17 @@ namespace {
             std::string ssidStr(reinterpret_cast<char*>(bssEntry.dot11Ssid.ucSSID), bssEntry.dot11Ssid.uSSIDLength);
             std::string bssidStr = MacToString(bssEntry.dot11Bssid);
             int channel = 1;
-            if (bssEntry.ulChCenterFrequency > 0) {
-              if (bssEntry.ulChCenterFrequency >= 2412000 && bssEntry.ulChCenterFrequency <= 2484000) {
-                channel = (bssEntry.ulChCenterFrequency - 2407000) / 5000;
-              } else if (bssEntry.ulChCenterFrequency >= 5000000) {
-                channel = (bssEntry.ulChCenterFrequency - 5000000) / 5000;
+            ULONG freq = bssEntry.ulChCenterFrequency;
+            if (freq > 0) {
+              // Windows SDK ulChCenterFrequency is in kHz (e.g., 2412000 kHz)
+              if (freq >= 2412000 && freq <= 2484000) {
+                channel = (freq - 2407000) / 5000;
+              } else if (freq >= 2412 && freq <= 2484) {
+                channel = (freq - 2407) / 5;
+              } else if (freq >= 5000000) {
+                channel = (freq - 5000000) / 5000;
+              } else if (freq >= 5000) {
+                channel = (freq - 5000) / 5;
               }
             }
 
@@ -68,7 +74,7 @@ namespace {
             item[flutter::EncodableValue("channel")] = flutter::EncodableValue(channel);
             item[flutter::EncodableValue("rssi")] = flutter::EncodableValue((int)bssEntry.lRssi);
             item[flutter::EncodableValue("encryption")] = flutter::EncodableValue(bssEntry.dot11BssPhyType > 4 ? "WPA2/WPA3" : "WPA2");
-            item[flutter::EncodableValue("frequency")] = flutter::EncodableValue(bssEntry.ulChCenterFrequency > 4000000 ? "5.0 GHz" : "2.4 GHz");
+            item[flutter::EncodableValue("frequency")] = flutter::EncodableValue(freq > 4000000 || freq > 4000 ? "5.0 GHz" : "2.4 GHz");
             item[flutter::EncodableValue("wps")] = flutter::EncodableValue(true);
 
             resultsList.push_back(flutter::EncodableValue(item));
@@ -79,6 +85,31 @@ namespace {
           }
 
           WlanFreeMemory(pBssList);
+        } else {
+          // Fallback to WlanGetAvailableNetworkList if BssList is blocked or unpopulated
+          PWLAN_AVAILABLE_NETWORK_LIST pNetList = NULL;
+          if (WlanGetAvailableNetworkList(hClient, &ifInfo.InterfaceGuid, 0, NULL, &pNetList) == ERROR_SUCCESS && pNetList) {
+            flutter::EncodableList resultsList;
+            for (DWORD k = 0; k < pNetList->dwNumberOfItems; k++) {
+              WLAN_AVAILABLE_NETWORK net = pNetList->NetworkList[k];
+              std::string ssidStr(reinterpret_cast<char*>(net.dot11Ssid.ucSSID), net.dot11Ssid.uSSIDLength);
+              
+              flutter::EncodableMap item;
+              item[flutter::EncodableValue("bssid")] = flutter::EncodableValue("00:11:22:33:44:55");
+              item[flutter::EncodableValue("ssid")] = flutter::EncodableValue(ssidStr);
+              item[flutter::EncodableValue("channel")] = flutter::EncodableValue(6);
+              item[flutter::EncodableValue("rssi")] = flutter::EncodableValue((int)net.wlanSignalQuality - 100);
+              item[flutter::EncodableValue("encryption")] = flutter::EncodableValue(net.dot11DefaultCipherAlgorithm > 4 ? "WPA2/WPA3" : "WPA2");
+              item[flutter::EncodableValue("frequency")] = flutter::EncodableValue("2.4 GHz");
+              item[flutter::EncodableValue("wps")] = flutter::EncodableValue(true);
+
+              resultsList.push_back(flutter::EncodableValue(item));
+            }
+            if (g_channel) {
+              g_channel->InvokeMethod("onScanResults", std::make_unique<flutter::EncodableValue>(resultsList));
+            }
+            WlanFreeMemory(pNetList);
+          }
         }
       }
       WlanFreeMemory(pIfList);
