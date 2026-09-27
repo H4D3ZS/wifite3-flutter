@@ -26,6 +26,8 @@
         @"channel": @(self.channel),
         @"rssi": @(self.rssi),
         @"encryption": self.encryption ?: @"OPEN",
+        @"frequency": self.frequency ?: @"2.4 GHz",
+        @"wps": @(self.wpsEnabled),
         @"vendor": self.vendor ?: @"",
     };
 }
@@ -221,6 +223,16 @@ typedef int (*Apple80211CopyValueFn)(Apple80211Ref ref, int code, CFDictionaryRe
 
         // Encryption — derive from AP_MODE / WPA_IE / RSN_IE presence
         r.encryption = [self parseEncryption:entry];
+        
+        // Frequency - Channels <= 14 are 2.4 GHz, Channels > 14 are 5 GHz (or 6 GHz)
+        if (r.channel <= 14) {
+            r.frequency = @"2.4 GHz";
+        } else {
+            r.frequency = @"5 GHz"; // Covers 5Ghz for simplicity
+        }
+
+        // WPS - Apple80211 returns "WPS_PROB_RESP_IE" if WPS is enabled
+        r.wpsEnabled = (entry[@"WPS_PROB_RESP_IE"] != nil);
 
         [results addObject:r];
     }

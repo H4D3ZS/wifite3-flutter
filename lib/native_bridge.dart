@@ -15,6 +15,8 @@ class ScanResult {
   final int channel;
   final int rssi;
   final String encryption;
+  final String frequency;
+  final bool wpsEnabled;
   final String? vendor;
 
   ScanResult({
@@ -23,6 +25,8 @@ class ScanResult {
     required this.channel,
     required this.rssi,
     required this.encryption,
+    required this.frequency,
+    required this.wpsEnabled,
     this.vendor,
   });
 
@@ -33,6 +37,8 @@ class ScanResult {
       channel: map['channel'] ?? 0,
       rssi: map['rssi'] ?? -100,
       encryption: map['encryption'] ?? 'OPEN',
+      frequency: map['frequency'] ?? '2.4 GHz',
+      wpsEnabled: map['wps'] ?? false,
       vendor: map['vendor'],
     );
   }

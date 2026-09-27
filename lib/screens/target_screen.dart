@@ -138,9 +138,9 @@ class TargetScreen extends StatelessWidget {
         children: [
           _buildInfoRow('BSSID', viewModel.target.bssid, Icons.router),
           const Divider(color: HackerTheme.borderDim, height: 24),
-          _buildInfoRow('CHANNEL', viewModel.target.channel.toString(), Icons.settings_input_antenna),
+          _buildInfoRow('CHANNEL', '${viewModel.target.channel} (${viewModel.target.frequency})', Icons.settings_input_antenna),
           const Divider(color: HackerTheme.borderDim, height: 24),
-          _buildInfoRow('ENCRYPTION', viewModel.target.encryption, Icons.security),
+          _buildInfoRow('SECURITY', '${viewModel.target.encryption}${viewModel.target.wpsEnabled ? " + WPS" : ""}', Icons.security),
           const Divider(color: HackerTheme.borderDim, height: 24),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,

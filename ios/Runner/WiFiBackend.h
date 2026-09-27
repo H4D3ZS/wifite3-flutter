@@ -16,6 +16,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, assign) int channel;
 @property (nonatomic, assign) int rssi;
 @property (nonatomic, copy) NSString *encryption;  // "OPEN", "WEP", "WPA", "WPA2", "WPA3"
+@property (nonatomic, copy) NSString *frequency;   // "2.4 GHz" or "5 GHz"
+@property (nonatomic, assign) BOOL wpsEnabled;
 @property (nonatomic, copy, nullable) NSString *vendor;
 - (NSDictionary *)toDictionary;
 @end

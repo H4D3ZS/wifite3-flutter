@@ -195,28 +195,46 @@ class ScannerScreen extends StatelessWidget {
                           const SizedBox(width: 4),
                           Text(target.bssid, style: const TextStyle(fontSize: 13, color: HackerTheme.secondary)),
                           const Spacer(),
-                          Text('CH: ${target.channel.toString().padLeft(2, '0')}', style: const TextStyle(fontSize: 13, color: HackerTheme.textMuted)),
+                          Text('${target.frequency} CH: ${target.channel.toString().padLeft(2, '0')}', style: const TextStyle(fontSize: 13, color: HackerTheme.textMuted)),
                         ],
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(width: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: target.encryption.contains('WPA') ? HackerTheme.borderDim : HackerTheme.error.withValues(alpha: 0.2),
-                    border: Border.all(color: target.encryption.contains('WPA') ? HackerTheme.primary : HackerTheme.error),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    target.encryption,
-                    style: TextStyle(
-                      fontSize: 12, 
-                      fontWeight: FontWeight.bold,
-                      color: target.encryption.contains('WPA') ? HackerTheme.primary : HackerTheme.error,
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: target.encryption.contains('WPA') ? HackerTheme.borderDim : HackerTheme.error.withValues(alpha: 0.2),
+                        border: Border.all(color: target.encryption.contains('WPA') ? HackerTheme.primary : HackerTheme.error),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        target.encryption,
+                        style: TextStyle(
+                          fontSize: 12, 
+                          fontWeight: FontWeight.bold,
+                          color: target.encryption.contains('WPA') ? HackerTheme.primary : HackerTheme.error,
+                        ),
+                      ),
                     ),
-                  ),
+                    if (target.wpsEnabled) ...[
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: HackerTheme.secondary.withValues(alpha: 0.2),
+                          border: Border.all(color: HackerTheme.secondary),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text('WPS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: HackerTheme.secondary)),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),
