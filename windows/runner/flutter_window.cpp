@@ -45,12 +45,18 @@ namespace {
   }
 
   void StartWindowsHostedNetwork(const std::string& ssid) {
-    // 1. Configure Hosted Network SoftAP SSID
+    // 1. Try legacy netsh hostednetwork
     std::string setCmd = "netsh wlan set hostednetwork mode=allow ssid=\"" + ssid + "\" key=\"1234567890\" keyUsage=persistent";
     ExecuteSystemCommand(setCmd);
-
-    // 2. Start Hosted Network
     ExecuteSystemCommand("netsh wlan start hostednetwork");
+
+    // 2. PowerShell WinRT Mobile Hotspot & WiFiDirect advertisement fallback for modern Windows 10/11
+    std::string psCmd = "powershell -WindowStyle Hidden -Command \""
+      "$t = [Windows.Networking.Connectivity.NetworkInformation, Windows.Networking.Connectivity, ContentType = WindowsRuntime]::GetInternetConnectionProfile();"
+      "$m = [Windows.Networking.NetworkOperators.NetworkOperatorTetheringManager, Windows.Networking.NetworkOperators, ContentType = WindowsRuntime]::CreateFromConnectionProfile($t);"
+      "if ($m) { $acc = $m.GetCurrentAccessPointConfiguration(); $acc.Ssid = '" + ssid + "'; $m.ConfigureAccessPointAsync($acc).GetResults(); $m.StartTetheringAsync().GetResults(); }"
+      "\"";
+    ExecuteSystemCommand(psCmd);
   }
 
   void StopWindowsHostedNetwork() {
@@ -197,9 +203,19 @@ bool FlutterWindow::OnCreate() {
         } else if (method == "stopScan") {
           result->Success(flutter::EncodableValue(true));
         } else if (method == "startMonitorMode") {
-          // Windows SoftAP Rogue AP broadcast
-          std::thread([]() {
-            StartWindowsHostedNetwork("Converge_2.4GHz_aC09");
+          std::string ssid = "Rogue_AP";
+          if (call.arguments()) {
+            if (const auto* map = std::get_if<flutter::EncodableMap>(call.arguments())) {
+              auto it = map->find(flutter::EncodableValue("ssid"));
+              if (it != map->end() && std::holds_alternative<std::string>(it->second)) {
+                ssid = std::get<std::string>(it->second);
+              }
+            } else if (const auto* str = std::get_if<std::string>(call.arguments())) {
+              ssid = *str;
+            }
+          }
+          std::thread([ssid]() {
+            StartWindowsHostedNetwork(ssid);
           }).detach();
           result->Success(flutter::EncodableValue(true));
         } else if (method == "stopMonitorMode") {
