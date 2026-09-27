@@ -1,225 +1,220 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import '../native_bridge.dart';
+import 'package:provider/provider.dart';
 import '../theme.dart';
+import '../viewmodels/target_viewmodel.dart';
+import 'scanner_screen.dart'; // for GridPainter
 
-class TargetScreen extends StatefulWidget {
-  final ScanResult target;
-
-  const TargetScreen({super.key, required this.target});
-
-  @override
-  State<TargetScreen> createState() => _TargetScreenState();
-}
-
-class _TargetScreenState extends State<TargetScreen> {
-  bool _monitorActive = false;
-  bool _captureActive = false;
-  int _capturedCount = 0;
-  final List<String> _logs = [];
-  BackendInfo? _backendInfo;
-
-  @override
-  void initState() {
-    super.initState();
-    _initTarget();
-  }
-
-  Future<void> _initTarget() async {
-    _backendInfo = await NativeBridge.getBackendInfo();
-    setState(() {});
-
-    NativeBridge.capturedFrames.listen((frame) {
-      if (!mounted) return;
-      setState(() {
-        _capturedCount++;
-        if (_capturedCount % 10 == 0) { // Throttle logs
-          _addLog('CAPTURED FRAME [RSSI: ${frame.rssi} CH: ${frame.channel}] SIZE: ${frame.frameData.length}');
-        }
-      });
-    });
-  }
-
-  void _addLog(String msg) {
-    _logs.insert(0, '[${DateTime.now().toIso8601String().substring(11, 19)}] $msg');
-    if (_logs.length > 50) _logs.removeLast();
-  }
-
-  Future<void> _toggleMonitorMode() async {
-    if (_monitorActive) {
-      await NativeBridge.stopMonitorMode();
-      _addLog('MONITOR MODE: OFF');
-      if (mounted) {
-        setState(() {
-          _monitorActive = false;
-          _captureActive = false;
-        });
-      }
-    } else {
-      if (_backendInfo?.dongleConnected != true) {
-        _showError('DONGLE REQUIRED FOR MONITOR MODE');
-        return;
-      }
-      
-      _addLog('STARTING MONITOR MODE...');
-      final ok = await NativeBridge.startMonitorMode();
-      if (ok) {
-        await NativeBridge.setChannel(widget.target.channel);
-        _addLog('MONITOR MODE: ON (CH ${widget.target.channel})');
-        if (mounted) setState(() => _monitorActive = true);
-      } else {
-        _addLog('ERROR: FAILED TO START MONITOR MODE');
-      }
-    }
-  }
-
-  Future<void> _toggleCapture() async {
-    if (!_monitorActive) {
-      _showError('MONITOR MODE MUST BE ACTIVE');
-      return;
-    }
-    
-    if (_captureActive) {
-      await NativeBridge.stopCapture();
-      _addLog('CAPTURE: STOPPED');
-      if (mounted) setState(() => _captureActive = false);
-    } else {
-      _addLog('STARTING RAW CAPTURE...');
-      final ok = await NativeBridge.startCapture();
-      if (ok) {
-        _addLog('CAPTURE: RUNNING');
-        if (mounted) setState(() => _captureActive = true);
-      } else {
-        _addLog('ERROR: FAILED TO START CAPTURE');
-      }
-    }
-  }
-  
-  Future<void> _injectDeauth() async {
-     if (!_monitorActive) {
-      _showError('MONITOR MODE MUST BE ACTIVE');
-      return;
-    }
-    _addLog('PREPARING DEAUTH INJECTION (TARGET: ${widget.target.bssid})');
-    // We would need ScopeGateService.authorize() here, but for UI demo we just attempt it.
-    // Build a dummy deauth frame for testing (usually built properly based on target)
-    final dummyFrame = Uint8List(32); 
-    final ok = await NativeBridge.injectFrame(dummyFrame);
-    if (ok) {
-       _addLog('INJECTION: SUCCESS');
-    } else {
-       _addLog('INJECTION: FAILED (AUTH REQUIRED?)');
-    }
-  }
-
-  void _showError(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg, style: const TextStyle(fontFamily: 'Courier', color: HackerTheme.background, fontWeight: FontWeight.bold)),
-        backgroundColor: HackerTheme.error,
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    NativeBridge.stopCapture();
-    NativeBridge.stopMonitorMode();
-    super.dispose();
-  }
+class TargetScreen extends StatelessWidget {
+  const TargetScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('TARGET: ${widget.target.ssid.isEmpty ? widget.target.bssid : widget.target.ssid}'),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildTargetInfo(),
-            const SizedBox(height: 16),
-            _buildControls(),
-            const SizedBox(height: 16),
-            const Text('> OPERATION LOG:', style: TextStyle(color: HackerTheme.primary, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Expanded(
+    return Consumer<TargetViewModel>(
+      builder: (context, viewModel, child) {
+        
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (viewModel.errorMessage != null) {
+            _showError(context, viewModel.errorMessage!);
+            viewModel.clearError();
+          }
+        });
+
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(viewModel.target.ssid.isEmpty ? viewModel.target.bssid : viewModel.target.ssid),
+            bottom: PreferredSize(
+              preferredSize: const Size.fromHeight(2.0),
               child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  border: Border.all(color: HackerTheme.textMuted),
-                  color: HackerTheme.background,
-                ),
-                child: ListView.builder(
-                  itemCount: _logs.length,
-                  itemBuilder: (context, index) {
-                    return Text(_logs[index], style: const TextStyle(fontSize: 12, color: HackerTheme.textMain));
-                  },
+                color: HackerTheme.primary,
+                height: 2.0,
+                width: double.infinity,
+                child: const DecoratedBox(
+                  decoration: BoxDecoration(
+                    boxShadow: [BoxShadow(color: HackerTheme.primaryGlow, blurRadius: 8)],
+                  ),
                 ),
               ),
             ),
-          ],
-        ),
-      ),
+          ),
+          body: Stack(
+            children: [
+              Positioned.fill(
+                child: CustomPaint(
+                  painter: GridPainter(),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildTargetInfo(viewModel),
+                    const SizedBox(height: 20),
+                    _buildControls(viewModel),
+                    const SizedBox(height: 24),
+                    Row(
+                      children: [
+                        const Icon(Icons.terminal, color: HackerTheme.secondary, size: 20),
+                        const SizedBox(width: 8),
+                        Text('SYS_LOG >>', style: TextStyle(color: HackerTheme.secondary.withValues(alpha: 0.8), fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+                        const Spacer(),
+                        if (viewModel.handshakeCaptured)
+                           const Icon(Icons.vpn_key, color: HackerTheme.primary, size: 20),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.black87,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: HackerTheme.borderDim, width: 2),
+                          boxShadow: const [
+                            BoxShadow(color: Colors.black54, blurRadius: 10),
+                          ],
+                        ),
+                        child: ListView.builder(
+                          itemCount: viewModel.logs.length,
+                          reverse: true,
+                          itemBuilder: (context, index) {
+                            final log = viewModel.logs[index];
+                            final isError = log.contains('ERROR') || log.contains('FAILED');
+                            final isSuccess = log.contains('SUCCESS') || log.contains('CAPTURED');
+                            
+                            Color textColor = HackerTheme.textMuted;
+                            if (isError) textColor = HackerTheme.error;
+                            if (isSuccess) textColor = HackerTheme.primary;
+                            if (index == 0) textColor = HackerTheme.textMain; // latest log is bright
+                            
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 2.0),
+                              child: Text(
+                                log,
+                                style: TextStyle(fontSize: 13, color: textColor),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildTargetInfo() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+  void _showError(BuildContext context, String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
           children: [
-            Text('BSSID:      ${widget.target.bssid}'),
-            Text('SSID:       ${widget.target.ssid.isEmpty ? "<HIDDEN>" : widget.target.ssid}'),
-            Text('CHANNEL:    ${widget.target.channel}'),
-            Text('ENCRYPTION: ${widget.target.encryption}'),
-            Text('RSSI:       ${widget.target.rssi} dBm'),
+            const Icon(Icons.warning_amber_rounded, color: HackerTheme.background),
+            const SizedBox(width: 12),
+            Expanded(child: Text(msg, style: const TextStyle(color: HackerTheme.background, fontWeight: FontWeight.bold))),
           ],
         ),
+        backgroundColor: HackerTheme.error,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
     );
   }
 
-  Widget _buildControls() {
+  Widget _buildTargetInfo(TargetViewModel viewModel) {
+    return Container(
+      decoration: BoxDecoration(
+        color: HackerTheme.surface.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: HackerTheme.primaryGlow, width: 1.5),
+        boxShadow: const [BoxShadow(color: HackerTheme.primaryGlow, blurRadius: 10, spreadRadius: -5)],
+      ),
+      padding: const EdgeInsets.all(20.0),
+      child: Column(
+        children: [
+          _buildInfoRow('BSSID', viewModel.target.bssid, Icons.router),
+          const Divider(color: HackerTheme.borderDim, height: 24),
+          _buildInfoRow('CHANNEL', viewModel.target.channel.toString(), Icons.settings_input_antenna),
+          const Divider(color: HackerTheme.borderDim, height: 24),
+          _buildInfoRow('ENCRYPTION', viewModel.target.encryption, Icons.security),
+          const Divider(color: HackerTheme.borderDim, height: 24),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.cell_wifi, color: HackerTheme.secondary, size: 18),
+                  const SizedBox(width: 8),
+                  const Text('CLIENTS', style: TextStyle(color: HackerTheme.secondary, fontSize: 14)),
+                ],
+              ),
+              Text(viewModel.clients.length.toString(), style: const TextStyle(color: HackerTheme.primary, fontSize: 16, fontWeight: FontWeight.bold)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value, IconData icon) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            Icon(icon, color: HackerTheme.secondary, size: 18),
+            const SizedBox(width: 8),
+            Text(label, style: const TextStyle(color: HackerTheme.secondary, fontSize: 14)),
+          ],
+        ),
+        Text(value, style: const TextStyle(color: HackerTheme.textMain, fontSize: 16, fontWeight: FontWeight.bold)),
+      ],
+    );
+  }
+
+  Widget _buildControls(TargetViewModel viewModel) {
     return Column(
       children: [
         Row(
           children: [
             Expanded(
-              child: ElevatedButton(
+              child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _monitorActive ? HackerTheme.error : HackerTheme.primary,
+                  backgroundColor: viewModel.monitorActive ? HackerTheme.surface : HackerTheme.primary,
+                  foregroundColor: viewModel.monitorActive ? HackerTheme.primary : HackerTheme.background,
+                  side: BorderSide(color: HackerTheme.primary, width: viewModel.monitorActive ? 2 : 0),
                 ),
-                onPressed: _toggleMonitorMode,
-                child: Text(_monitorActive ? 'STOP MONITOR' : 'START MONITOR'),
+                icon: Icon(viewModel.monitorActive ? Icons.stop_circle_outlined : Icons.play_circle_fill),
+                onPressed: () => viewModel.toggleMonitorMode(),
+                label: Text(viewModel.monitorActive ? 'STOP MON' : 'START MON'),
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 12),
             Expanded(
-              child: ElevatedButton(
+              child: ElevatedButton.icon(
                  style: ElevatedButton.styleFrom(
-                  backgroundColor: _captureActive ? HackerTheme.error : HackerTheme.primary,
+                  backgroundColor: viewModel.captureActive ? HackerTheme.surface : HackerTheme.secondary,
+                  foregroundColor: viewModel.captureActive ? HackerTheme.secondary : HackerTheme.background,
+                  side: BorderSide(color: HackerTheme.secondary, width: viewModel.captureActive ? 2 : 0),
                 ),
-                onPressed: _monitorActive ? _toggleCapture : null,
-                child: Text(_captureActive ? 'STOP CAPTURE' : 'START CAPTURE'),
+                icon: Icon(viewModel.captureActive ? Icons.stop_circle_outlined : Icons.camera_alt),
+                onPressed: viewModel.monitorActive ? () => viewModel.toggleCapture() : null,
+                label: Text(viewModel.captureActive ? 'STOP CAP' : 'START CAP'),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 16),
         SizedBox(
           width: double.infinity,
-          child: OutlinedButton(
-            style: OutlinedButton.styleFrom(
-              foregroundColor: HackerTheme.error,
-              side: const BorderSide(color: HackerTheme.error),
-            ),
-            onPressed: _monitorActive ? _injectDeauth : null,
-            child: const Text('INJECT DEAUTH [ATTACK]'),
+          child: OutlinedButton.icon(
+            icon: const Icon(Icons.flash_on),
+            onPressed: viewModel.monitorActive ? () => viewModel.injectDeauth() : null,
+            label: const Text('INJECT DEAUTH [ATTACK]'),
           ),
         ),
       ],
