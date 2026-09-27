@@ -22,6 +22,69 @@ namespace {
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> g_channel = nullptr;
   std::atomic<bool> g_isCapturing(false);
   std::thread g_captureThread;
+
+  std::string MacToString(const BYTE* mac) {
+    char buf[18];
+    sprintf_s(buf, "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    return std::string(buf);
+  }
+
+  void PerformWindowsScanAndEmit() {
+    HANDLE hClient = NULL;
+    DWORD dwCurVersion = 0;
+    DWORD dwResult = WlanOpenHandle(2, NULL, &dwCurVersion, &hClient);
+    if (dwResult != ERROR_SUCCESS) return;
+
+    PWLAN_INTERFACE_INFO_LIST pIfList = NULL;
+    if (WlanEnumInterfaces(hClient, NULL, &pIfList) == ERROR_SUCCESS) {
+      for (DWORD i = 0; i < pIfList->dwNumberOfItems; i++) {
+        WLAN_INTERFACE_INFO ifInfo = pIfList->InterfaceInfo[i];
+        
+        // Trigger Scan
+        WlanScan(hClient, &ifInfo.InterfaceGuid, NULL, NULL, NULL);
+        Sleep(500); // Give driver time to populate BSS list
+
+        PWLAN_BSS_LIST pBssList = NULL;
+        if (WlanGetNetworkBssList(hClient, &ifInfo.InterfaceGuid, NULL, dot11_BSS_type_any, FALSE, NULL, &pBssList) == ERROR_SUCCESS) {
+          flutter::EncodableList resultsList;
+
+          for (DWORD j = 0; j < pBssList->dwNumberOfItems; j++) {
+            WLAN_BSS_ENTRY bssEntry = pBssList->wlanBssEntries[j];
+            
+            std::string ssidStr(reinterpret_cast<char*>(bssEntry.dot11Ssid.ucSsid), bssEntry.dot11Ssid.uSSidLength);
+            std::string bssidStr = MacToString(bssEntry.dot11Bssid);
+            int channel = 1;
+            if (bssEntry.ulChCenterFrequency > 0) {
+              if (bssEntry.ulChCenterFrequency >= 2412000 && bssEntry.ulChCenterFrequency <= 2484000) {
+                channel = (bssEntry.ulChCenterFrequency - 2407000) / 5000;
+              } else if (bssEntry.ulChCenterFrequency >= 5000000) {
+                channel = (bssEntry.ulChCenterFrequency - 5000000) / 5000;
+              }
+            }
+
+            flutter::EncodableMap item;
+            item[flutter::EncodableValue("bssid")] = flutter::EncodableValue(bssidStr);
+            item[flutter::EncodableValue("ssid")] = flutter::EncodableValue(ssidStr);
+            item[flutter::EncodableValue("channel")] = flutter::EncodableValue(channel);
+            item[flutter::EncodableValue("rssi")] = flutter::EncodableValue((int)bssEntry.lRssi);
+            item[flutter::EncodableValue("encryption")] = flutter::EncodableValue(bssEntry.dot11BssPhyType > 4 ? "WPA2/WPA3" : "WPA2");
+            item[flutter::EncodableValue("frequency")] = flutter::EncodableValue(bssEntry.ulChCenterFrequency > 4000000 ? "5.0 GHz" : "2.4 GHz");
+            item[flutter::EncodableValue("wps")] = flutter::EncodableValue(true);
+
+            resultsList.push_back(flutter::EncodableValue(item));
+          }
+
+          if (g_channel) {
+            g_channel->InvokeMethod("onScanResults", std::make_unique<flutter::EncodableValue>(resultsList));
+          }
+
+          WlanFreeMemory(pBssList);
+        }
+      }
+      WlanFreeMemory(pIfList);
+    }
+    WlanCloseHandle(hClient, NULL);
+  }
 }
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
@@ -44,7 +107,7 @@ bool FlutterWindow::OnCreate() {
   RegisterPlugins(flutter_controller_->engine());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
-  // Set up Flutter MethodChannel for Windows (Wlanapi + WinPcap / Npcap dongles: TL-WN823N & PW-DN421)
+  // Set up Flutter MethodChannel for Windows (Wlanapi + WinPcap / Npcap dongles)
   g_channel = std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
       flutter_controller_->engine()->messenger(), "com.wifiteapp/wifi",
       &flutter::StandardMethodCodec::GetInstance());
@@ -69,20 +132,7 @@ bool FlutterWindow::OnCreate() {
         } else if (method == "connectDongle") {
           result->Success(flutter::EncodableValue(true));
         } else if (method == "startScan") {
-          // Native Windows Scan trigger
-          HANDLE hClient = NULL;
-          DWORD dwCurVersion = 0;
-          DWORD dwResult = WlanOpenHandle(2, NULL, &dwCurVersion, &hClient);
-          if (dwResult == ERROR_SUCCESS) {
-            PWLAN_INTERFACE_INFO_LIST pIfList = NULL;
-            if (WlanEnumInterfaces(hClient, NULL, &pIfList) == ERROR_SUCCESS) {
-              for (DWORD i = 0; i < pIfList->dwNumberOfItems; i++) {
-                WlanScan(hClient, &pIfList->InterfaceInfo[i].InterfaceGuid, NULL, NULL, NULL);
-              }
-              WlanFreeMemory(pIfList);
-            }
-            WlanCloseHandle(hClient, NULL);
-          }
+          std::thread(PerformWindowsScanAndEmit).detach();
           result->Success(flutter::EncodableValue(true));
         } else if (method == "startMonitorMode") {
           result->Success(flutter::EncodableValue(true));
