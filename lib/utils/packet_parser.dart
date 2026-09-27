@@ -22,6 +22,19 @@ class PacketParser {
     return null;
   }
   
+  /// Check if the frame contains WPA3 SAE Authentication (Algo 3)
+  static bool isWpa3Sae(Uint8List frame) {
+    if (frame.length < 28) return false;
+    final fc = frame[0];
+    final type = (fc >> 2) & 0x03;
+    final subtype = (fc >> 4) & 0x0F;
+    if (type == 0 && subtype == 11) { // Mgmt Auth
+      final algo = frame[24] | (frame[25] << 8);
+      return algo == 3; // Auth Algo 3 = SAE (WPA3)
+    }
+    return false;
+  }
+
   /// Check if the frame contains EAPOL (WPA handshake) payload
   static bool hasEapol(Uint8List frame) {
     // Look for EAPOL EtherType (88 8E)
