@@ -237,6 +237,34 @@ class TargetScreen extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: HackerTheme.primary,
+                  side: BorderSide(color: viewModel.monitorActive ? HackerTheme.primary : HackerTheme.borderDim, width: 1.5),
+                ),
+                icon: const Icon(Icons.shield_moon),
+                onPressed: viewModel.monitorActive ? () => viewModel.injectWpa3SaeAttack() : null,
+                label: const Text('WPA3-SAE [2026]'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: HackerTheme.secondary,
+                  side: BorderSide(color: viewModel.monitorActive ? HackerTheme.secondary : HackerTheme.borderDim, width: 1.5),
+                ),
+                icon: const Icon(Icons.repeat),
+                onPressed: viewModel.monitorActive ? () => viewModel.injectWepArpReplay() : null,
+                label: const Text('WEP REPLAY'),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(

