@@ -51,7 +51,7 @@ namespace {
           for (DWORD j = 0; j < pBssList->dwNumberOfItems; j++) {
             WLAN_BSS_ENTRY bssEntry = pBssList->wlanBssEntries[j];
             
-            std::string ssidStr(reinterpret_cast<char*>(bssEntry.dot11Ssid.ucSsid), bssEntry.dot11Ssid.uSSidLength);
+            std::string ssidStr(reinterpret_cast<char*>(bssEntry.dot11Ssid.ucSSID), bssEntry.dot11Ssid.uSSIDLength);
             std::string bssidStr = MacToString(bssEntry.dot11Bssid);
             int channel = 1;
             if (bssEntry.ulChCenterFrequency > 0) {
