@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../domain/entities/access_point.dart';
+import '../data/repositories/wifi_repository_impl.dart';
+import '../presentation/screens/evil_twin_screen.dart';
+import '../presentation/viewmodels/evil_twin_viewmodel.dart';
 import '../theme.dart';
 import '../viewmodels/target_viewmodel.dart';
 import 'scanner_screen.dart'; // for GridPainter
@@ -231,6 +235,41 @@ class TargetScreen extends StatelessWidget {
               ),
             ),
           ],
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: HackerTheme.primary,
+              foregroundColor: HackerTheme.background,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+            ),
+            icon: const Icon(Icons.security, size: 20),
+            onPressed: () {
+              final domainAp = AccessPoint(
+                bssid: viewModel.target.bssid,
+                ssid: viewModel.target.ssid,
+                channel: viewModel.target.channel,
+                rssi: viewModel.target.rssi,
+                encryption: viewModel.target.encryption,
+                frequency: viewModel.target.frequency,
+                wpsEnabled: viewModel.target.wpsEnabled,
+                vendor: viewModel.target.vendor,
+              );
+
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ChangeNotifierProvider(
+                    create: (_) => EvilTwinViewModel(WifiRepositoryImpl()),
+                    child: EvilTwinScreen(target: domainAp),
+                  ),
+                ),
+              );
+            },
+            label: const Text('LAUNCH FLUXION EVIL TWIN CAPTIVE PORTAL', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+          ),
         ),
       ],
     );
