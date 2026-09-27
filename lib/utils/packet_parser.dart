@@ -138,6 +138,56 @@ class PacketParser {
     return frame;
   }
 
+  /// Extract an SSID from a Management frame if it matches the target BSSID
+  static String? extractSsidForTarget(Uint8List frame, String targetBssid) {
+    if (frame.length < 24) return null;
+    final fc = frame[0];
+    final type = (fc >> 2) & 0x03;
+    final subtype = (fc >> 4) & 0x0F;
+    
+    if (type != 0) return null; // Must be management
+    
+    final addr1 = _macString(frame, 4);
+    final addr2 = _macString(frame, 10);
+    final addr3 = _macString(frame, 16);
+    
+    bool matches = false;
+    // Beacon or Probe Resp: BSSID is usually Addr3 and Addr2
+    if ((subtype == 8 || subtype == 5) && (addr3 == targetBssid || addr2 == targetBssid)) matches = true;
+    // Probe Req: BSSID is usually Addr1 (Destination) if directed
+    if (subtype == 4 && addr1 == targetBssid) matches = true;
+    
+    if (!matches) return null;
+
+    int offset = 24;
+    if (subtype == 8 || subtype == 5) {
+      offset += 12; // Skip Timestamp(8), Beacon Interval(2), Cap Info(2)
+    }
+
+    while (offset < frame.length - 1) {
+      int tagNum = frame[offset];
+      int tagLen = frame[offset + 1];
+      
+      if (tagNum == 0) { // SSID Tag
+        if (tagLen > 0 && offset + 2 + tagLen <= frame.length) {
+          final ssidBytes = frame.sublist(offset + 2, offset + 2 + tagLen);
+          bool isAllNulls = true;
+          for(int b in ssidBytes) { if (b != 0) isAllNulls = false; }
+          if (isAllNulls) return null;
+
+          try {
+            return String.fromCharCodes(ssidBytes);
+          } catch (e) {
+            return null;
+          }
+        }
+        return null;
+      }
+      offset += 2 + tagLen;
+    }
+    return null;
+  }
+
   static String _macString(Uint8List data, int offset) {
     if (offset + 6 > data.length) return "";
     return List.generate(6, (i) => data[offset + i].toRadixString(16).padLeft(2, '0').toUpperCase()).join(':');

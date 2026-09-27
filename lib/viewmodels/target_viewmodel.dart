@@ -18,6 +18,7 @@ class TargetViewModel extends ChangeNotifier {
   PcapWriter? _pcapWriter;
   bool _handshakeCaptured = false;
   String _myRandomMac = '00:11:22:33:44:55';
+  String? _decloakedSsid;
 
   StreamSubscription? _captureSub;
 
@@ -29,6 +30,7 @@ class TargetViewModel extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   Set<String> get clients => _clients;
   bool get handshakeCaptured => _handshakeCaptured;
+  String get displaySsid => _decloakedSsid ?? (target.ssid.isEmpty ? '<HIDDEN_SSID>' : target.ssid);
 
   TargetViewModel(this.target) {
     _initTarget();
@@ -60,6 +62,16 @@ class TargetViewModel extends ChangeNotifier {
         notifyListeners();
         // Automatically stop capturing once we have the handshake
         await toggleCapture(); 
+      }
+
+      // Parse for Hidden SSID Decloaking
+      if ((target.ssid.isEmpty || target.ssid.contains('<HIDDEN')) && _decloakedSsid == null) {
+        final foundSsid = PacketParser.extractSsidForTarget(frame.frameData, target.bssid);
+        if (foundSsid != null && foundSsid.isNotEmpty) {
+          _decloakedSsid = foundSsid;
+          addLog('*** SSID DECLOAKED: $foundSsid ***');
+          notifyListeners();
+        }
       }
 
       if (_capturedCount % 100 == 0) {

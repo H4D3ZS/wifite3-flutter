@@ -21,7 +21,7 @@ class TargetScreen extends StatelessWidget {
 
         return Scaffold(
           appBar: AppBar(
-            title: Text(viewModel.target.ssid.isEmpty ? viewModel.target.bssid : viewModel.target.ssid),
+            title: Text(viewModel.displaySsid),
             bottom: PreferredSize(
               preferredSize: const Size.fromHeight(2.0),
               child: Container(
