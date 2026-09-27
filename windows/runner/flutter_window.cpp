@@ -91,7 +91,7 @@ namespace {
           if (WlanGetAvailableNetworkList(hClient, &ifInfo.InterfaceGuid, 0, NULL, &pNetList) == ERROR_SUCCESS && pNetList) {
             flutter::EncodableList resultsList;
             for (DWORD k = 0; k < pNetList->dwNumberOfItems; k++) {
-              WLAN_AVAILABLE_NETWORK net = pNetList->NetworkList[k];
+              WLAN_AVAILABLE_NETWORK net = pNetList->Network[k];
               std::string ssidStr(reinterpret_cast<char*>(net.dot11Ssid.ucSSID), net.dot11Ssid.uSSIDLength);
               
               flutter::EncodableMap item;
