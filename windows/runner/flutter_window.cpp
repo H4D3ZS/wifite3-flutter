@@ -6,6 +6,7 @@
 #include <string>
 #include <thread>
 #include <atomic>
+#include <sstream>
 
 #include <flutter/method_channel.h>
 #include <flutter/standard_method_codec.h>
@@ -13,7 +14,7 @@
 
 #include "flutter/generated_plugin_registrant.h"
 
-// Windows Native WiFi (Wlanapi) and Raw PCAP / Adapter headers
+// Windows Native WiFi (Wlanapi) and System headers
 #include <windows.h>
 #include <wlanapi.h>
 #pragma comment(lib, "wlanapi.lib")
@@ -28,6 +29,33 @@ namespace {
     char buf[18];
     sprintf_s(buf, "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
     return std::string(buf);
+  }
+
+  void ExecuteSystemCommand(const std::string& cmd) {
+    std::string fullCmd = "cmd.exe /c " + cmd;
+    STARTUPINFOA si = { sizeof(si) };
+    PROCESS_INFORMATION pi;
+    si.dwFlags = STARTF_USESHOWWINDOW;
+    si.wShowWindow = SW_HIDE;
+    if (CreateProcessA(NULL, const_cast<char*>(fullCmd.c_str()), NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
+      WaitForSingleObject(pi.hProcess, 3000);
+      CloseHandle(pi.hProcess);
+      CloseHandle(pi.hThread);
+    }
+  }
+
+  void StartWindowsHostedNetwork(const std::string& ssid) {
+    // 1. Configure Hosted Network SoftAP SSID
+    std::string setCmd = "netsh wlan set hostednetwork mode=allow ssid=\"" + ssid + "\" key=\"1234567890\" keyUsage=persistent";
+    ExecuteSystemCommand(setCmd);
+
+    // 2. Start Hosted Network
+    ExecuteSystemCommand("netsh wlan start hostednetwork");
+  }
+
+  void StopWindowsHostedNetwork() {
+    ExecuteSystemCommand("netsh wlan stop hostednetwork");
+    ExecuteSystemCommand("netsh wlan set hostednetwork mode=disallow");
   }
 
   void PerformWindowsScanAndEmit() {
@@ -82,7 +110,7 @@ namespace {
           WlanFreeMemory(pBssList);
         }
 
-        // Also Query Available Networks
+        // Query Available Networks
         PWLAN_AVAILABLE_NETWORK_LIST pNetList = NULL;
         if (WlanGetAvailableNetworkList(hClient, &ifInfo.InterfaceGuid, 0, NULL, &pNetList) == ERROR_SUCCESS && pNetList) {
           for (DWORD k = 0; k < pNetList->dwNumberOfItems; k++) {
@@ -137,7 +165,7 @@ bool FlutterWindow::OnCreate() {
   RegisterPlugins(flutter_controller_->engine());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
-  // Set up Flutter MethodChannel for Windows (Wlanapi + WinPcap / Npcap dongles)
+  // Set up Flutter MethodChannel for Windows (Wlanapi + WinPcap / Npcap dongles + HostedNetwork SoftAP)
   g_channel = std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
       flutter_controller_->engine()->messenger(), "com.wifiteapp/wifi",
       &flutter::StandardMethodCodec::GetInstance());
@@ -169,8 +197,15 @@ bool FlutterWindow::OnCreate() {
         } else if (method == "stopScan") {
           result->Success(flutter::EncodableValue(true));
         } else if (method == "startMonitorMode") {
+          // Windows SoftAP Rogue AP broadcast
+          std::thread([]() {
+            StartWindowsHostedNetwork("Converge_2.4GHz_aC09");
+          }).detach();
           result->Success(flutter::EncodableValue(true));
         } else if (method == "stopMonitorMode") {
+          std::thread([]() {
+            StopWindowsHostedNetwork();
+          }).detach();
           result->Success(flutter::EncodableValue(true));
         } else if (method == "setChannel") {
           result->Success(flutter::EncodableValue(true));
