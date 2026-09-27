@@ -1,7 +1,6 @@
 // domain/usecases/execute_pmkid_attack.dart
 import 'dart:async';
 import 'dart:math';
-import 'dart:typed_data';
 import '../entities/access_point.dart';
 import '../repositories/wifi_repository.dart';
 import '../../utils/packet_parser.dart';
